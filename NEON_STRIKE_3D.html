@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>NEON STRIKE 3D - 霓虹突击</title>
+<style>
+:root{--cyan:#50eaff;--blue:#387dff;--panel:rgba(7,15,31,.82);--line:rgba(80,234,255,.35)}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#050914;color:#eafaff;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;touch-action:none}
+#game{position:fixed;inset:0}
+canvas{display:block}
+#hud{position:fixed;inset:0;pointer-events:none}
+.panel{background:var(--panel);border:1px solid var(--line);box-shadow:0 0 22px rgba(40,160,255,.12);backdrop-filter:blur(8px);border-radius:12px}
+#topbar{position:absolute;top:14px;left:14px;right:14px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+#brand{padding:10px 14px;font-weight:900;letter-spacing:2px;color:var(--cyan);font-size:14px}
+#stats{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.stat{padding:8px 12px;min-width:82px;text-align:center;font-size:11px;color:#9cb7d7}
+.stat b{display:block;font-size:19px;color:#fff}
+#healthWrap{position:absolute;left:16px;bottom:18px;width:min(240px,42vw);padding:10px 12px}
+.label{font-size:10px;letter-spacing:1.5px;color:#9cb7d7;margin-bottom:6px}
+.bar{height:8px;background:#18263c;border-radius:10px;overflow:hidden;margin-bottom:8px}
+.fill{height:100%;width:100%;background:linear-gradient(90deg,#24d7c4,#5cecff);transition:width .15s}
+#ammo{position:absolute;right:18px;bottom:18px;padding:10px 15px;text-align:right}
+#ammo strong{font-size:25px;color:var(--cyan)}
+#crosshair{position:absolute;left:50%;top:50%;width:22px;height:22px;transform:translate(-50%,-50%)}
+#crosshair:before,#crosshair:after{content:"";position:absolute;background:#bdfaff;box-shadow:0 0 8px var(--cyan)}
+#crosshair:before{width:2px;height:22px;left:10px}
+#crosshair:after{height:2px;width:22px;top:10px}
+#hitmarker{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:30px;color:#fff;opacity:0}
+#message{position:absolute;top:22%;width:100%;text-align:center;color:#bcefff;text-shadow:0 0 15px #18bfff;font-size:13px;letter-spacing:2px}
+#overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,rgba(12,34,65,.72),rgba(2,5,13,.96));z-index:5;padding:18px}
+#card{width:min(520px,100%);padding:28px;text-align:center}
+h1{font-size:clamp(30px,7vw,54px);margin:4px 0;color:#dffcff;letter-spacing:3px;text-shadow:0 0 24px #168bff}
+.subtitle{color:#76cce9;letter-spacing:3px;font-size:11px;margin-bottom:22px}
+.desc{color:#b3c6df;line-height:1.8;font-size:13px}
+button{border:1px solid rgba(80,234,255,.6);border-radius:9px;padding:12px 20px;background:linear-gradient(110deg,#1264ad,#173c82);color:white;font-weight:800;letter-spacing:1px;cursor:pointer}
+button:active{transform:scale(.98)}
+#startBtn{width:100%;margin-top:18px;font-size:16px;padding:15px}
+#help{font-size:11px;color:#8da7c5;margin-top:15px;line-height:1.8}
+.hidden{display:none!important}
+#mobileControls{position:fixed;inset:0;pointer-events:none;display:none;z-index:3}
+#stickArea{position:absolute;left:18px;bottom:25px;width:125px;height:125px;border:1px solid #76dfff66;border-radius:50%;background:#0d2a4a55;pointer-events:auto}
+#stick{position:absolute;left:38px;top:38px;width:48px;height:48px;border-radius:50%;background:#4bdfff66;border:1px solid #a5f5ff}
+#fireBtn{position:absolute;right:25px;bottom:42px;width:82px;height:82px;border-radius:50%;pointer-events:auto;background:#0e71b9aa;border:2px solid #8af4ff;font-size:12px}
+#lookArea{position:absolute;left:35%;right:0;top:18%;bottom:0;pointer-events:auto}
+#pauseBtn{position:absolute;top:70px;right:16px;pointer-events:auto;padding:8px 12px;font-size:11px}
+@media(pointer:coarse){#mobileControls{display:block}#help .desktop{display:none}}
+@media(max-width:520px){#brand{font-size:11px}#stats{gap:5px}.stat{min-width:65px;padding:7px}.stat b{font-size:16px}#healthWrap{bottom:150px;width:42vw}#ammo{bottom:150px}}
+</style>
+</head>
+<body>
+<div id="game"></div>
+<div id="hud">
+  <div id="topbar">
+    <div id="brand" class="panel">✦ NEON STRIKE <span style="color:#fff">3D</span></div>
+    <div id="stats">
+      <div class="stat panel">WAVE<b id="wave">1</b></div>
+      <div class="stat panel">SCORE<b id="score">0</b></div>
+      <div class="stat panel">DRONES<b id="remaining">0</b></div>
+    </div>
+  </div>
+  <div id="message"></div>
+  <div id="crosshair"></div><div id="hitmarker">✦</div>
+  <div id="healthWrap" class="panel">
+    <div class="label">ENERGY SHIELD <span id="healthText" style="float:right">100%</span></div>
+    <div class="bar"><div id="healthFill" class="fill"></div></div>
+    <div class="label">SUIT POWER</div>
+    <div class="bar"><div id="powerFill" class="fill" style="width:100%;background:linear-gradient(90deg,#7b61ff,#50eaff)"></div></div>
+  </div>
+  <div id="ammo" class="panel"><div class="label">PULSE CHARGES</div><strong id="ammoText">∞</strong></div>
+</div>
+<div id="mobileControls">
+  <div id="stickArea"><div id="stick"></div></div>
+  <div id="lookArea"></div>
+  <button id="fireBtn">PULSE</button>
+  <button id="pauseBtn">Ⅱ PAUSE</button>
+</div>
+<div id="overlay">
+  <div id="card" class="panel">
+    <div class="subtitle">ARCADE COMBAT SIMULATION</div>
+    <h1 id="overlayTitle">NEON STRIKE</h1>
+    <div class="subtitle">霓 虹 突 击 · 3D</div>
+    <p class="desc" id="overlayDesc">进入未来训练场，清除失控的训练无人机。收集分数，挑战不断增强的波次。</p>
+    <button id="startBtn">开始任务</button>
+    <div id="help">
+      <span class="desktop">电脑：WASD 移动 · 鼠标转向 · 点击左键发射 · ESC 暂停</span>
+      <span class="mobile">手机：左侧摇杆移动 · 右侧区域转向 · PULSE 发射</span>
+      <br>本游戏为虚构科幻街机体验，不含真实武器模拟。
+    </div>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+(()=>{
+"use strict";
+const $=id=>document.getElementById(id);
+const game=$("game");
+let scene,camera,renderer,clock;
+let running=false,paused=false,gameOver=false;
+let score=0,wave=1,health=100,power=100;
+let enemies=[],effects=[],keys={};
+let yaw=0,pitch=0,shootCooldown=0,spawnTimer=0;
+let moveX=0,moveZ=0,lookTouch=null,lastLookX=0,lastLookY=0;
+const raycaster=new THREE.Raycaster();
+const center=new THREE.Vector2(0,0);
+const tempVec=new THREE.Vector3();
+const mats={};
+function material(color,emissive=color,roughness=.4){
+ return new THREE.MeshStandardMaterial({color,emissive,emissiveIntensity:.55,roughness,metalness:.35});
+}
+function makeBox(w,h,d,mat,x,y,z){
+ const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);scene.add(m);return m;
+}
+function init(){
+ scene=new THREE.Scene();scene.background=new THREE.Color(0x050a16);scene.fog=new THREE.Fog(0x050a16,18,65);
+ camera=new THREE.PerspectiveCamera(76,innerWidth/innerHeight,.1,120);
+ camera.position.set(0,1.7,9);
+ renderer=new THREE.WebGLRenderer({antialias:true});
+ renderer.setPixelRatio(Math.min(devicePixelRatio,1.8));renderer.setSize(innerWidth,innerHeight);
+ renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;
+ game.appendChild(renderer.domElement);
+ clock=new THREE.Clock();
+ scene.add(new THREE.HemisphereLight(0x8bcaff,0x101323,1.4));
+ const key=new THREE.DirectionalLight(0x9bdfff,1.6);key.position.set(5,12,8);scene.add(key);
+ const floorMat=material(0x101c30,0x071c36,.8);
+ const floor=new THREE.Mesh(new THREE.PlaneGeometry(100,100),floorMat);floor.rotation.x=-Math.PI/2;floor.position.y=0;scene.add(floor);
+ const grid=new THREE.GridHelper(100,70,0x1c91bc,0x18334c);grid.position.y=.015;scene.add(grid);
+ // Arena perimeter and luminous architectural pillars
+ const wallMat=material(0x132743,0x09294a);
+ makeBox(46,5,1,wallMat,0,2.5,-23);makeBox(46,5,1,wallMat,0,2.5,23);
+ makeBox(1,5,46,wallMat,-23,2.5,0);makeBox(1,5,46,wallMat,23,2.5,0);
+ const neon=material(0x16bde8,0x13a9ff);
+ for(let i=-2;i<=2;i++){
+  for(const z of [-18,18]){
+   const p=makeBox(.16,4,.16,neon,i*8,2,z);
+   p.material=neon;
+  }
+  for(const x of [-18,18])makeBox(.16,4,.16,neon,x,2,i*8);
+ }
+ // Cover blocks
+ const coverMat=material(0x263b58,0x102b4a);
+ [[-9,-7],[8,-8],[-12,5],[11,6],[0,-14],[0,13]].forEach(([x,z],i)=>{
+  const h=1.5+(i%3)*.5;makeBox(3,h,2,coverMat,x,h/2,z);
+  const strip=makeBox(3,.07,2.04,neon,x,h,z);
+ });
+ // distant floating lights
+ for(let i=0;i<35;i++){
+  const orb=new THREE.Mesh(new THREE.SphereGeometry(.045,8,8),material(0x4beaff,0x4beaff));
+  orb.position.set((Math.random()-.5)*42,1+Math.random()*5,(Math.random()-.5)*42);scene.add(orb);
+ }
+ camera.rotation.order="YXZ";
+}
+function makeDrone(x,z){
+ const group=new THREE.Group();
+ const core=new THREE.Mesh(new THREE.IcosahedronGeometry(.55,1),material(0x9b315b,0xff235e));
+ group.add(core);
+ const ring=new THREE.Mesh(new THREE.TorusGeometry(.78,.07,8,24),material(0x29d9ff,0x1baaff));
+ ring.rotation.x=Math.PI/2;group.add(ring);
+ const eye=new THREE.Mesh(new THREE.SphereGeometry(.16,12,12),material(0xffdf78,0xffa51c));
+ eye.position.set(0,0,.48);group.add(eye);
+ const wingMat=material(0x334c70,0x235d8b);
+ for(const s of [-1,1]){
+  const wing=new THREE.Mesh(new THREE.BoxGeometry(.7,.12,.3),wingMat);
+  wing.position.x=s*.72;group.add(wing);
+ }
+ group.position.set(x,1.7+Math.random()*1.2,z);scene.add(group);
+ enemies.push({group,hp:2,speed:1.2+wave*.13,phase:Math.random()*6.28,hit:0});
+}
+function spawnWave(){
+ const count=Math.min(4+wave*2,22);
+ for(let i=0;i<count;i++){
+  let x,z;do{x=(Math.random()-.5)*34;z=(Math.random()-.5)*34;}while(Math.hypot(x-camera.position.x,z-camera.position.z)<10);
+  makeDrone(x,z);
+ }
+ $("wave").textContent=wave;$("remaining").textContent=enemies.length;
+ $("message").textContent="WAVE "+wave+" — TRAINING DRONES INBOUND";
+ setTimeout(()=>{if($("message").textContent.startsWith("WAVE"))$("message").textContent="";},1800);
+}
+function addBurst(pos,color=0x51eaff){
+ const g=new THREE.Group();g.position.copy(pos);scene.add(g);
+ for(let i=0;i<9;i++){
+  const m=new THREE.Mesh(new THREE.SphereGeometry(.055,6,6),new THREE.MeshBasicMaterial({color,transparent:true}));
+  m.position.set((Math.random()-.5)*.7,(Math.random()-.5)*.7,(Math.random()-.5)*.7);g.add(m);
+ }
+ effects.push({obj:g,life:.35});
+}
+function shoot(){
+ if(!running||paused||gameOver||shootCooldown>0)return;
+ shootCooldown=.19;
+ const flash=new THREE.PointLight(0x4beaff,3,5);flash.position.copy(camera.position);scene.add(flash);
+ effects.push({obj:flash,life:.07});
+ raycaster.setFromCamera(center,camera);
+ const meshes=[];
+ enemies.forEach(e=>e.group.traverse(o=>{if(o.isMesh)meshes.push(o)}));
+ const hits=raycaster.intersectObjects(meshes,false);
+ if(hits.length){
+  const hit=hits[0],enemy=enemies.find(e=>{let found=false;e.group.traverse(o=>{if(o===hit.object)found=true});return found});
+  if(enemy){
+   enemy.hp--;enemy.hit=.12;addBurst(hit.point,0x60efff);
+   if(enemy.hp<=0){
+    addBurst(enemy.group.position,0xff4f9a);scene.remove(enemy.group);
+    enemies=enemies.filter(e=>e!==enemy);score+=100; $("score").textContent=score;
+    $("remaining").textContent=enemies.length;
+   }
+   $("hitmarker").style.opacity="1";setTimeout(()=>$("hitmarker").style.opacity="0",100);
+  }
+ }
+}
+function update(dt){
+ if(!running||paused||gameOver)return;
+ shootCooldown=Math.max(0,shootCooldown-dt);
+ const forward=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));
+ const right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));
+ let x=(keys.KeyD?1:0)-(keys.KeyA?1:0)+moveX;
+ let z=(keys.KeyS?1:0)-(keys.KeyW?1:0)+moveZ;
+ const len=Math.hypot(x,z)||1;x/=len;z/=len;
+ camera.position.addScaledVector(right,x*7*dt);
+ camera.position.addScaledVector(forward,-z*7*dt);
+ camera.position.x=THREE.MathUtils.clamp(camera.position.x,-21,21);
+ camera.position.z=THREE.MathUtils.clamp(camera.position.z,-21,21);
+ camera.position.y=1.7;
+ camera.rotation.set(pitch,yaw,0);
+ enemies.forEach(e=>{
+  e.phase+=dt*3;e.group.position.y=1.7+Math.sin(e.phase)*.28;
+  const dx=camera.position.x-e.group.position.x,dz=camera.position.z-e.group.position.z;
+  const d=Math.hypot(dx,dz)||1;
+  if(d>2.1){e.group.position.x+=dx/d*e.speed*dt;e.group.position.z+=dz/d*e.speed*dt;}
+  else{
+   e.hit-=dt;
+   if(e.hit<=0){health=Math.max(0,health-7);e.hit=.8;updateBars();}
+  }
+  e.group.lookAt(camera.position);
+  e.group.rotation.z=Math.sin(e.phase)*.12;
+ });
+ effects=effects.filter(e=>{e.life-=dt;if(e.life<=0){scene.remove(e.obj);return false;}return true;});
+ if(enemies.length===0){
+  spawnTimer+=dt;
+  if(spawnTimer>2){wave++;spawnTimer=0;spawnWave();}
+ }
+ if(health<=0)endGame();
+}
+function updateBars(){
+ $("healthFill").style.width=health+"%";$("healthText").textContent=health+"%";
+ $("powerFill").style.width=power+"%";
+}
+function loop(){
+ requestAnimationFrame(loop);
+ const dt=Math.min(clock.getDelta(),.04);
+ update(dt);
+ if(renderer&&scene)renderer.render(scene,camera);
+}
+function start(){
+ if(!scene)init();
+ $("overlay").classList.add("hidden");
+ running=true;paused=false;gameOver=false;score=0;wave=1;health=100;power=100;
+ enemies.forEach(e=>scene.remove(e.group));enemies=[];
+ effects.forEach(e=>scene.remove(e.obj));effects=[];
+ camera.position.set(0,1.7,9);yaw=0;pitch=0;
+ $("score").textContent="0";updateBars();spawnWave();
+ if(matchMedia("(pointer:fine)").matches)renderer.domElement.requestPointerLock?.();
+}
+function pause(){
+ if(!running||gameOver)return;
+ paused=!paused;
+ $("overlayTitle").textContent=paused?"任务暂停":"NEON STRIKE";
+ $("overlayDesc").textContent=paused?"训练场已暂停。准备好后继续任务。":"进入未来训练场，清除失控的训练无人机。";
+ $("startBtn").textContent=paused?"继续游戏":"开始任务";
+ $("overlay").classList.toggle("hidden",!paused);
+ if(paused&&document.pointerLockElement)document.exitPointerLock();
+ else if(!paused&&matchMedia("(pointer:fine)").matches)renderer.domElement.requestPointerLock?.();
+}
+function endGame(){
+ gameOver=true;running=false;
+ if(document.pointerLockElement)document.exitPointerLock();
+ $("overlayTitle").textContent="任务结束";
+ $("overlayDesc").textContent="最终得分："+score+" · 到达波次："+wave+"。再试一次，刷新你的记录！";
+ $("startBtn").textContent="重新开始";
+ $("overlay").classList.remove("hidden");
+}
+$("startBtn").addEventListener("click",()=>{
+ if(paused&&!gameOver){paused=false;$("overlay").classList.add("hidden");if(matchMedia("(pointer:fine)").matches)renderer.domElement.requestPointerLock?.();}
+ else start();
+});
+$("pauseBtn").addEventListener("click",pause);
+document.addEventListener("keydown",e=>{keys[e.code]=true;if(e.code==="Escape"&&running&&!gameOver)pause();});
+document.addEventListener("keyup",e=>keys[e.code]=false);
+document.addEventListener("mousemove",e=>{
+ if(document.pointerLockElement===renderer?.domElement&&running&&!paused){
+  yaw-=e.movementX*.0022;pitch-=e.movementY*.0022;
+  pitch=THREE.MathUtils.clamp(pitch,-1.25,1.25);
+ }
+});
+document.addEventListener("mousedown",e=>{if(e.button===0&&document.pointerLockElement===renderer?.domElement)shoot();});
+const stickArea=$("stickArea"),stick=$("stick");
+stickArea.addEventListener("pointerdown",e=>{stickArea.setPointerCapture(e.pointerId);moveStick(e);});
+stickArea.addEventListener("pointermove",e=>{if(e.buttons)moveStick(e);});
+function moveStick(e){
+ const r=stickArea.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
+ let dx=e.clientX-cx,dy=e.clientY-cy,l=Math.hypot(dx,dy),max=43;
+ if(l>max){dx=dx/l*max;dy=dy/l*max;}
+ stick.style.transform=`translate(${dx}px,${dy}px)`;
+ moveX=dx/max;moveZ=dy/max;
+}
+function resetStick(){moveX=0;moveZ=0;stick.style.transform="translate(0,0)";}
+stickArea.addEventListener("pointerup",resetStick);stickArea.addEventListener("pointercancel",resetStick);
+$("lookArea").addEventListener("pointerdown",e=>{lookTouch=e.pointerId;lastLookX=e.clientX;lastLookY=e.clientY;$("lookArea").setPointerCapture(e.pointerId);});
+$("lookArea").addEventListener("pointermove",e=>{
+ if(lookTouch!==e.pointerId)return;
+ yaw-=(e.clientX-lastLookX)*.006;pitch-=(e.clientY-lastLookY)*.005;
+ pitch=THREE.MathUtils.clamp(pitch,-1.2,1.2);lastLookX=e.clientX;lastLookY=e.clientY;
+});
+$("lookArea").addEventListener("pointerup",()=>lookTouch=null);
+$("fireBtn").addEventListener("pointerdown",e=>{e.preventDefault();shoot();});
+addEventListener("resize",()=>{
+ if(!camera||!renderer)return;
+ camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);
+});
+try{init();loop();}catch(err){console.error(err);$("overlayDesc").textContent="3D 初始化失败，请检查网络连接并刷新页面。";}
+})();
+</script>
+</body>
+</html>
